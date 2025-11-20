@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { parseCSV, normalizeGuestData } from '@/lib/csv'
 import Card from '@/components/Card'
@@ -25,11 +25,7 @@ export default function GuestListFiles({ userId }: GuestListFilesProps) {
   } | null>(null)
   const supabase = createClient()
 
-  useEffect(() => {
-    loadFiles()
-  }, [userId])
-
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     try {
       setError(null)
       const { data, error: fetchError } = await supabase
@@ -46,7 +42,11 @@ export default function GuestListFiles({ userId }: GuestListFilesProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId, supabase])
+
+  useEffect(() => {
+    loadFiles()
+  }, [loadFiles])
 
   const processSingleFile = async (file: File, index: number, total: number): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -309,7 +309,7 @@ export default function GuestListFiles({ userId }: GuestListFilesProps) {
         <p className="text-muted-foreground">Loading files...</p>
       ) : files.length === 0 ? (
         <p className="text-muted-foreground text-center py-8">
-          No guest list files yet. Click "Add New Guest List" to upload one. Each CSV file will automatically create a new event.
+          No guest list files yet. Click &quot;Add New Guest List&quot; to upload one. Each CSV file will automatically create a new event.
         </p>
       ) : (
         <GuestListTable files={files} onDelete={handleDelete} formatFileSize={formatFileSize} />

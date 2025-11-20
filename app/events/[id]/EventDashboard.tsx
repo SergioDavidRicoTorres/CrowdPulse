@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getEventKPIs } from '@/lib/analytics'
 import Card from '@/components/Card'
@@ -71,7 +71,7 @@ export default function EventDashboard({
   )
 
   // Reset to page 1 when search changes
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery])
 
