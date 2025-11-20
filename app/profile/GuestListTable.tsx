@@ -46,6 +46,7 @@ export default function GuestListTable({
     };
 
     loadEventNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files]);
 
   return (

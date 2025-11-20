@@ -40,6 +40,16 @@ npm install
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# TikTok OAuth (optional - for social media connections)
+TIKTOK_CLIENT_KEY=your_tiktok_client_key
+TIKTOK_CLIENT_SECRET=your_tiktok_client_secret
+TIKTOK_REDIRECT_URI=https://yourdomain.com/auth/tiktok/callback
+
+# Instagram/Meta OAuth (optional - for social media connections)
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+IG_REDIRECT_URI=https://yourdomain.com/auth/instagram/callback
 ```
 
 ### 3. Set Up Database Tables
@@ -70,17 +80,55 @@ CREATE TABLE events (
 CREATE TABLE guests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  api_id TEXT,
   name TEXT,
+  first_name TEXT,
+  last_name TEXT,
   email TEXT,
+  phone_number TEXT,
   ticket_type TEXT,
   raw_data JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create guest_list_files table
+CREATE TABLE guest_list_files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+  file_name TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  guest_count INTEGER NOT NULL,
+  storage_path TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create social_accounts table
+CREATE TABLE social_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL CHECK (platform IN ('tiktok', 'instagram')),
+  external_user_id TEXT NOT NULL,
+  username TEXT,
+  display_name TEXT,
+  avatar_url TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, platform)
+);
+
+-- Create index on social_accounts
+CREATE INDEX idx_social_accounts_user_platform ON social_accounts(user_id, platform);
+
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE guests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guest_list_files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
 CREATE POLICY "Users can view own profile"
@@ -152,9 +200,74 @@ CREATE POLICY "Users can delete guests of own events"
       AND events.user_id = auth.uid()
     )
   );
+
+-- Guest list files policies
+CREATE POLICY "Users can view own guest list files"
+  ON guest_list_files FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own guest list files"
+  ON guest_list_files FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own guest list files"
+  ON guest_list_files FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Social accounts policies
+CREATE POLICY "Users can view own social accounts"
+  ON social_accounts FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own social accounts"
+  ON social_accounts FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own social accounts"
+  ON social_accounts FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own social accounts"
+  ON social_accounts FOR DELETE
+  USING (auth.uid() = user_id);
 ```
 
-### 4. Run the Development Server
+### 5. Set Up Supabase Storage
+
+1. Go to Storage in your Supabase dashboard
+2. Create a new bucket named `guest-lists`
+3. Set the bucket to **Private**
+4. Add the following policy to allow users to upload their own files:
+
+```sql
+-- Allow users to upload files to their own folder
+CREATE POLICY "Users can upload own files"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'guest-lists' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- Allow users to view their own files
+CREATE POLICY "Users can view own files"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'guest-lists' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+-- Allow users to delete their own files
+CREATE POLICY "Users can delete own files"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'guest-lists' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+```
+
+**Note:** The storage policy uses `(storage.foldername(name))[1]` because Supabase's `foldername` function returns an array where the first element `[1]` is the first folder in the path (the user ID in our case). The path structure is `{userId}/{filename}`.
+
+### 6. Run the Development Server
 
 ```bash
 npm run dev

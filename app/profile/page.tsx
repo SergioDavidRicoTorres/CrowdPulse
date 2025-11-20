@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import ProfileForm from './ProfileForm'
 import GuestListFiles from './GuestListFiles'
+import Connections from './Connections'
 import Card from '@/components/Card'
+import type { SocialAccount } from '@/types'
 
 async function getProfile(userId: string) {
   const supabase = await createServerClient()
@@ -19,6 +21,30 @@ async function getProfile(userId: string) {
   return data
 }
 
+async function getSocialAccounts(userId: string): Promise<{
+  tiktokAccount: SocialAccount | null
+  instagramAccount: SocialAccount | null
+}> {
+  const supabase = await createServerClient()
+  const { data, error } = await supabase
+    .from('social_accounts')
+    .select('*')
+    .eq('user_id', userId)
+    .in('platform', ['tiktok', 'instagram'])
+
+  if (error) {
+    console.error('Error fetching social accounts:', error)
+    return { tiktokAccount: null, instagramAccount: null }
+  }
+
+  const tiktokAccount =
+    data?.find((account) => account.platform === 'tiktok') || null
+  const instagramAccount =
+    data?.find((account) => account.platform === 'instagram') || null
+
+  return { tiktokAccount, instagramAccount }
+}
+
 export default async function ProfilePage() {
   const supabase = await createServerClient()
   const {
@@ -29,7 +55,10 @@ export default async function ProfilePage() {
     redirect('/auth')
   }
 
-  const profile = await getProfile(user.id)
+  const [profile, socialAccounts] = await Promise.all([
+    getProfile(user.id),
+    getSocialAccounts(user.id),
+  ])
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -45,6 +74,12 @@ export default async function ProfilePage() {
           </div>
           <ProfileForm initialData={profile} userId={user.id} />
         </Card>
+
+        {/* Connections Section */}
+        <Connections
+          tiktokAccount={socialAccounts.tiktokAccount}
+          instagramAccount={socialAccounts.instagramAccount}
+        />
 
         {/* Events Section */}
         <div>

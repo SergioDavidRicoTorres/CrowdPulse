@@ -40,6 +40,21 @@ export interface GuestListFile {
   created_at: string
 }
 
+export interface SocialAccount {
+  id: string
+  user_id: string
+  platform: 'tiktok' | 'instagram'
+  external_user_id: string
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
+  access_token: string
+  refresh_token: string | null
+  token_expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -62,6 +77,11 @@ export interface Database {
         Row: GuestListFile
         Insert: Omit<GuestListFile, 'id' | 'created_at'>
         Update: Partial<Omit<GuestListFile, 'id' | 'created_at'>>
+      }
+      social_accounts: {
+        Row: SocialAccount
+        Insert: Omit<SocialAccount, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<SocialAccount, 'id' | 'created_at' | 'updated_at'>>
       }
     }
   }
